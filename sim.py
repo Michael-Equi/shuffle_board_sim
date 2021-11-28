@@ -97,10 +97,11 @@ class ShuffleBoardSim:
                 distance_btw_pucks_after_step = np.linalg.norm((x.get_x(pair[0]) + x_dot.get_x(pair[0]) * self.dt) - (
                         x.get_x(pair[1]) + x_dot.get_x(pair[1]) * self.dt))
                 if distance_btw_pucks < 2 * self.r and (distance_btw_pucks - distance_btw_pucks_after_step) > 0:
-                    v_p2 = p @ x_dot.get_x(pair[0]) / (p @ p) * p
-                    v_p1 = x_dot.get_x(pair[0]) - v_p2
-                    x_dot.set_x_dot(pair[0], (v_p1 - x_dot.get_x(pair[0])) / self.dt)
-                    x_dot.set_x_dot(pair[1], (v_p2 - x_dot.get_x(pair[1])) / self.dt)
+                    vref = x_dot.get_x(pair[1])
+                    v_p2 = p @ (x_dot.get_x(pair[0]) - vref) / (p @ p) * p
+                    v_p1 = (x_dot.get_x(pair[0]) - vref) - v_p2
+                    x_dot.set_x_dot(pair[0], (v_p1 - x_dot.get_x(pair[0]) + vref) / self.dt)
+                    x_dot.set_x_dot(pair[1], (v_p2 - x_dot.get_x(pair[1]) + vref) / self.dt)
 
             return x_dot
 
@@ -164,8 +165,21 @@ if __name__ == '__main__':
         5: 'blue',
     }
 
-    initial_state.set_x(0, np.array([0.48, 0.1]))
-    initial_state.set_x_dot(0, np.array([0, 1.03]))
+    # initial_state.set_x(0, np.array([0.48, 0.1]))
+    # initial_state.set_x_dot(0, np.array([0, 1.03]))
+    # initial_state.set_x(1, np.array([0.5, 1]))
+    # initial_state.set_x_dot(1, np.array([0, 0]))
+    # initial_state.set_x(2, np.array([0.6, 1.2]))
+    # initial_state.set_x_dot(2, np.array([0, 0]))
+    # initial_state.set_x(3, np.array([0.73, 1.4]))
+    # initial_state.set_x_dot(3, np.array([0, 0]))
+    # initial_state.set_x(4, np.array([0.5, 1.6]))
+    # initial_state.set_x_dot(4, np.array([0, 0]))
+    # initial_state.set_x(5, np.array([0.5, 1.8]))
+    # initial_state.set_x_dot(5, np.array([0, 0]))
+
+    initial_state.set_x(0, np.array([0.5, 1.8]))
+    initial_state.set_x_dot(0, np.array([0, 0]))
     initial_state.set_x(1, np.array([0.5, 1]))
     initial_state.set_x_dot(1, np.array([0, 0]))
     initial_state.set_x(2, np.array([0.6, 1.2]))
@@ -174,15 +188,15 @@ if __name__ == '__main__':
     initial_state.set_x_dot(3, np.array([0, 0]))
     initial_state.set_x(4, np.array([0.5, 1.6]))
     initial_state.set_x_dot(4, np.array([0, 0]))
-    initial_state.set_x(5, np.array([0.5, 1.8]))
-    initial_state.set_x_dot(5, np.array([0, 0]))
+    initial_state.set_x(5, np.array([0.48, 0.1]))
+    initial_state.set_x_dot(5, np.array([0, 1.03]))
 
     start = time.time()
     xf, xs = board.simulate(initial_state)
     print("Solve time:", time.time() - start)
 
     print(xf)
-    # fig, ax = plt.subplots(figsize=(12, 6))
-    # visualize_traj(xs, fig, ax, teams)
-    # plt.show()
-    animate(xs, dt, teams)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    visualize_traj(xs, fig, ax, teams)
+    plt.show()
+    # animate(xs, dt, teams)
