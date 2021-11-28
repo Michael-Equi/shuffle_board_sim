@@ -11,19 +11,15 @@ class ShuffleBoardGame:
     width = 1
 
     def __init__(self):
-        self.sim = sim.ShuffleBoardSim(ShuffleBoardGame.length, ShuffleBoardGame.width)
-        self.board = [] # Pucks stored as an array of (x, y) tuples
-        self.turn_time = 5
+        self.dt = 0.01
+        self.sim = sim.ShuffleBoardSim(self.dt)
 
-    def take_turn(self, team, x_pos, y_pos, x_vel, y_vel):
-        puck_x, puck_y = self.sim_turn(x_pos, y_pos, x_vel, y_vel)
-        self.board.append((puck_x, puck_y, team))
-
-    def sim_turn(self, x_pos, y_pos, x_vel, y_vel): # Similar to take turn but doesn't update board state
-        puck_trajectory = self.sim.simulate(np.array([x_pos, y_pos, x_vel, y_vel]), self.turn_time)
-        puck_x_final = puck_trajectory[-1,0]
-        puck_y_final = puck_trajectory[-1,1]
-        return puck_x_final, puck_y_final
+    def sim_turn(self, state, puck, x_pos, y_pos, x_vel, y_vel): # Similar to take turn but doesn't update board state   
+        original_x = state.get_all(puck)
+        state.set_all(puck, np.array([x_pos, y_pos, x_vel, y_vel]))
+        xf, xs = self.sim.simulate(state)
+        state.set_all(puck, original_x)
+        return xf, xs
 
     def score_board(self):
         scores = [0,0]
@@ -56,13 +52,21 @@ class ShuffleBoardGame:
 
 
 if __name__ == '__main__':
-    num_pucks = 3 # Num pucks per team
+    num_pucks = 6 # Num pucks total
     game = ShuffleBoardGame()
+    state = sim.State(num_pucks)
     p1 = players.RandomPlayer()
     p2 = players.RandomPlayer()
-    for _ in range(num_pucks):
-        game.take_turn(0, *p1.calc_move(game.board))
-        game.take_turn(1, *p2.calc_move(game.board))
-    print(game.score_board())
-    game.display_board()
+    teams = {} # This should only be used for visualization
+    for i in range(num_pucks):
+        if i % 2 == 0:
+            teams[i] = 'red'
+            state, xs = game.sim_turn(state, i, *p1.calc_move(state))
+        else:
+            teams[i] = 'blue'
+            state, xs = game.sim_turn(state, i, *p2.calc_move(state))
+        print(state)
+    sim.animate(xs, game.dt, teams)
+    # print(game.score_board())
+    # game.display_board()
     
