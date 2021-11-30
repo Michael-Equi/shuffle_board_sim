@@ -48,11 +48,21 @@ class State:
     def get_x_dot(self, puck):
         return self._state[self.num_pucks * 2 + puck * 2:self.num_pucks * 2 + puck * 2 + 2]
 
+    def get_all(self, puck):
+        res = np.empty(4)
+        res[0:2] = self.get_x(puck)
+        res[2:4] = self.get_x_dot(puck)
+        return res
+
     def set_x(self, puck, value):
         self._state[puck * 2:puck * 2 + 2] = value
 
     def set_x_dot(self, puck, value):
         self._state[self.num_pucks * 2 + puck * 2:self.num_pucks * 2 + puck * 2 + 2] = value
+
+    def set_all(self, puck, value):
+        self.set_x(puck, value[0:2])
+        self.set_x_dot(puck, value[2:4])
 
     def get_state(self):
         return np.copy(self._state)
@@ -92,16 +102,19 @@ class ShuffleBoardSim:
 
             for pair in itertools.combinations(range(x.num_pucks), 2):
                 # Collision physics
-                p = x.get_x(pair[0]) - x.get_x(pair[1])
-                distance_btw_pucks = np.linalg.norm(p)
-                distance_btw_pucks_after_step = np.linalg.norm((x.get_x(pair[0]) + x_dot.get_x(pair[0]) * self.dt) - (
-                        x.get_x(pair[1]) + x_dot.get_x(pair[1]) * self.dt))
-                if distance_btw_pucks < 2 * self.r and (distance_btw_pucks - distance_btw_pucks_after_step) > 0:
-                    vref = x_dot.get_x(pair[1])
-                    v_p2 = p @ (x_dot.get_x(pair[0]) - vref) / (p @ p) * p
-                    v_p1 = (x_dot.get_x(pair[0]) - vref) - v_p2
-                    x_dot.set_x_dot(pair[0], (v_p1 - x_dot.get_x(pair[0]) + vref) / self.dt)
-                    x_dot.set_x_dot(pair[1], (v_p2 - x_dot.get_x(pair[1]) + vref) / self.dt)
+                p1 = x.get_x(pair[0])
+                p2 = x.get_x(pair[1])
+                if not ((p1[0] == 0 and p1[1] == 0) or (p2[0] == 0 and p2[1] == 0)):
+                    p = p1 - p2
+                    distance_btw_pucks = np.linalg.norm(p)
+                    distance_btw_pucks_after_step = np.linalg.norm((x.get_x(pair[0]) + x_dot.get_x(pair[0]) * self.dt) - (
+                            x.get_x(pair[1]) + x_dot.get_x(pair[1]) * self.dt))
+                    if distance_btw_pucks < 2 * self.r and (distance_btw_pucks - distance_btw_pucks_after_step) > 0:
+                        vref = x_dot.get_x(pair[1])
+                        v_p2 = p @ (x_dot.get_x(pair[0]) - vref) / (p @ p) * p
+                        v_p1 = (x_dot.get_x(pair[0]) - vref) - v_p2
+                        x_dot.set_x_dot(pair[0], (v_p1 - x_dot.get_x(pair[0]) + vref) / self.dt)
+                        x_dot.set_x_dot(pair[1], (v_p2 - x_dot.get_x(pair[1]) + vref) / self.dt)
 
             return x_dot
 
@@ -129,7 +142,8 @@ def visualize(state, fig, ax, teams={}, r=0.02936875):
 
 def animate(states, dt, teams={}, r=0.02936875):
     fig, ax = plt.subplots(figsize=(12, 6))
-    for state in states:
+    less_states = states[0::10]
+    for state in less_states:
         visualize(state, fig, ax, teams, r)
         plt.pause(dt)
         ax.clear()
