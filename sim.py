@@ -70,9 +70,9 @@ class State:
 
 class ShuffleBoardSim:
     def __init__(self, dt, min_velocity=1e-2):
-        # board dimensions (meters)
-        self.length = 2
-        self.width = 0.5
+        # # board dimensions (feet)
+        # self.length = 2
+        # self.width = 0.5
 
         # mass in kg
         self.m = 0.345
@@ -82,10 +82,9 @@ class ShuffleBoardSim:
         self.dt = dt
         self.min_velocity = min_velocity
 
-    def simulate(self, initial_state: State, tol=1e-5):
-
+    def simulate(self, initial_state: State, game, tol=1e-3):
         # for friction models see http://www.mate.tue.nl/mate/pdfs/11194.pdf
-        def closed_loop(x: State):
+        def closed_loop(x: State, in_play):
             x_dot = State(x.num_pucks)
 
             def get_friction(v, m):
@@ -95,17 +94,20 @@ class ShuffleBoardSim:
                     return f
                 return np.zeros_like(v)
 
-            for puck in range(x.num_pucks):
-                x_dot.set_x(puck, x.get_x_dot(puck))
-                x_dot.set_x(puck, np.where(abs(x_dot.get_x(puck)) < self.min_velocity, 0, x_dot.get_x(puck)))
+            moving = []
+            for puck in in_play:
+                puck_x_dot = x.get_x_dot(puck)
+                if puck_x_dot[0] >= self.min_velocity or puck_x_dot[1] >= self.min_velocity:
+                    moving.append(puck)
+
+            for puck in moving:
+                x_dot.set_x(puck, np.where(abs(x.get_x_dot(puck)) < self.min_velocity, 0, x.get_x_dot(puck)))
                 x_dot.set_x_dot(puck, get_friction(x_dot.get_x(puck), self.m))
 
-            for pair in itertools.combinations(range(x.num_pucks), 2):
+            for pair in itertools.combinations(in_play, 2):
+                if pair[0] in moving or pair[1] in moving:
                 # Collision physics
-                p1 = x.get_x(pair[0])
-                p2 = x.get_x(pair[1])
-                if not ((p1[0] == 0 and p1[1] == 0) or (p2[0] == 0 and p2[1] == 0)):
-                    p = p1 - p2
+                    p = x.get_x(pair[0]) - x.get_x(pair[1])
                     distance_btw_pucks = np.linalg.norm(p)
                     distance_btw_pucks_after_step = np.linalg.norm((x.get_x(pair[0]) + x_dot.get_x(pair[0]) * self.dt) - (
                             x.get_x(pair[1]) + x_dot.get_x(pair[1]) * self.dt))
@@ -115,18 +117,25 @@ class ShuffleBoardSim:
                         v_p1 = (x_dot.get_x(pair[0]) - vref) - v_p2
                         x_dot.set_x_dot(pair[0], (v_p1 - x_dot.get_x(pair[0]) + vref) / self.dt)
                         x_dot.set_x_dot(pair[1], (v_p2 - x_dot.get_x(pair[1]) + vref) / self.dt)
-
+            
             return x_dot
 
+        in_play = []
+        for i in range(initial_state.num_pucks):
+            p = initial_state.get_x(i)
+            if not ((p[0] == 0 and p[1] == 0) or \
+                p[0] < -self.r or p[0] > game.width + self.r or \
+                p[1] < -self.r or p[1] > game.length + self.r):
+                in_play.append(i)
         xs = [initial_state]
         while True:
-            x_dot = closed_loop(xs[-1])
+            x_dot = closed_loop(xs[-1], in_play)
             xs.append(xs[-1] + x_dot * self.dt)
             if np.linalg.norm(xs[-1] - xs[-2]) < tol:
                 return xs[-1], xs
 
 
-def visualize(state, fig, ax, teams={}, r=0.02936875):
+def visualize(state, fig, ax, length, width, teams={}, r=0.02936875):
     for puck in range(state.num_pucks):
         pos = state.get_x(puck)
         if puck in teams.keys():
@@ -136,15 +145,15 @@ def visualize(state, fig, ax, teams={}, r=0.02936875):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     plt.axis('square')
-    plt.xlim([0, 1])
-    plt.ylim([0, 2])
+    plt.xlim([0, width])
+    plt.ylim([0, length])
 
 
-def animate(states, dt, teams={}, r=0.02936875):
-    fig, ax = plt.subplots(figsize=(12, 6))
+def animate(states, dt, length, width, teams={}, r=0.02936875):
+    fig, ax = plt.subplots(figsize=(3, 6))
     less_states = states[0::10]
     for state in less_states:
-        visualize(state, fig, ax, teams, r)
+        visualize(state, fig, ax, length, width, teams, r)
         plt.pause(dt)
         ax.clear()
 
