@@ -1,10 +1,10 @@
-import math
 import copy
 import time
 from random import uniform
 
 import numpy as np
 import multiprocessing as mp
+from scipy.ndimage import gaussian_filter
 
 import sim
 
@@ -26,13 +26,17 @@ class SimPlayer(Player):
     def calc_move(self, player, state, puck, use_mp=True):
         start = time.time()
     
+        poss_x_pos = np.array([self.game.width/4, self.game.width/2, 3*self.game.width/4])
+        poss_x_vel = np.arange(-0.15, 0.15, .01)
+        poss_y_vel = np.arange(1.0, 1.3, .02)
+
         shots = []
-        for x_pos in [self.game.width/4, self.game.width/2, 3*self.game.width/4]:
-            for x_vel in np.arange(-0.15, 0.15, .01):
-                for y_vel in np.arange(1.0, 1.3, .02):
+        for x_pos in poss_x_pos:
+            for x_vel in poss_x_vel:
+                for y_vel in poss_y_vel:
                     shots.append((x_pos, x_vel, y_vel))
 
-        shot_scores = np.empty(len(shots))
+        shot_scores = np.empty((len(poss_x_pos), len(poss_x_vel), len(poss_y_vel)))
         result_shots = np.empty(len(shots), dtype='f,f,f')
         with mp.Pool(processes=12) as pool:
             results = []
@@ -46,13 +50,25 @@ class SimPlayer(Player):
             for idx, r in enumerate(results):
                 xf = r[0].get()[0]
                 score = self.game.score_board(xf)
-                shot_scores[idx] = score[0] - score[1]
-                result_shots[idx] = r[1]
+                x_pos_loc = np.searchsorted(poss_x_pos, r[1][0])
+                x_vel_loc = np.searchsorted(poss_x_vel, r[1][1])
+                y_vel_loc = np.searchsorted(poss_y_vel, r[1][2])
+                shot_scores[x_pos_loc,x_vel_loc,y_vel_loc] = score[0] - score[1]
+                # result_shots[idx] = r[1]
 
             np.random.seed(1)
             if player == 1:
                 shot_scores = -shot_scores
-            best_shot = result_shots[np.random.choice(np.flatnonzero(shot_scores == shot_scores.max()))]
+
+            shot_scores = gaussian_filter(shot_scores, sigma=1, mode='nearest')
+
+            max_shot_val = np.max(shot_scores)
+            max_shot_choices = (shot_scores == max_shot_val).nonzero()
+            choice = np.random.randint(len(max_shot_choices[0]))
+            chosen_x_pos = poss_x_pos[max_shot_choices[0][choice]]
+            chosen_x_vel = poss_x_vel[max_shot_choices[1][choice]]
+            chosen_y_vel = poss_y_vel[max_shot_choices[2][choice]]
+            best_shot = (chosen_x_pos, chosen_x_vel, chosen_y_vel)
 
             pool.join()
 
