@@ -25,10 +25,20 @@ class RandomPlayer(Player):
 class SimPlayer(Player):
     def calc_move(self, player, state, puck, use_mp=True):
         start = time.time()
+
+        turn = int(puck/2)
+        if player == 0:
+            num_puck_div = 4
+            true_score_div = [5,3,2,1]
+            alt_score_div = [2,2,3,3]
+        else:
+            num_puck_div = 4
+            true_score_div = [5,3,2,1]
+            alt_score_div = [2,2,3,5]
     
         poss_x_pos = np.array([self.game.width/4, self.game.width/2, 3*self.game.width/4])
-        poss_x_vel = np.arange(-0.15, 0.15, .01)
-        poss_y_vel = np.arange(1.0, 1.3, .02)
+        poss_x_vel = np.arange(-0.18, 0.19, .01)
+        poss_y_vel = np.arange(1.2, 1.27, .01)
 
         shots = []
         for x_pos in poss_x_pos:
@@ -37,7 +47,6 @@ class SimPlayer(Player):
                     shots.append((x_pos, x_vel, y_vel))
 
         shot_scores = np.empty((len(poss_x_pos), len(poss_x_vel), len(poss_y_vel)))
-        result_shots = np.empty(len(shots), dtype='f,f,f')
         with mp.Pool(processes=12) as pool:
             results = []
             for shot in shots:
@@ -47,23 +56,34 @@ class SimPlayer(Player):
 
             pool.close()
             
-            for idx, r in enumerate(results):
+            for r in results:
                 xf = r[0].get()[0]
+
                 score = self.game.score_board(xf)
+                # Number of pucks in play on board, score with all pucks counted
+                num_pucks, alt_score = self.game.board_heuristics(xf)
+
+                scaled_score_diff = (score[0] - score[1])/true_score_div[turn] # Usually max 3
+                scaled_alt_score_diff = (alt_score[0] - alt_score[1])/alt_score_div[turn] # Max possible 12
+                scaled_num_pucks_diff = (num_pucks[0] - num_pucks[1])/num_puck_div # Max possible 4
+
                 x_pos_loc = np.searchsorted(poss_x_pos, r[1][0])
                 x_vel_loc = np.searchsorted(poss_x_vel, r[1][1])
                 y_vel_loc = np.searchsorted(poss_y_vel, r[1][2])
-                shot_scores[x_pos_loc,x_vel_loc,y_vel_loc] = score[0] - score[1]
-                # result_shots[idx] = r[1]
+                shot_scores[x_pos_loc,x_vel_loc,y_vel_loc] = scaled_score_diff + scaled_alt_score_diff + scaled_num_pucks_diff
 
             np.random.seed(1)
             if player == 1:
                 shot_scores = -shot_scores
 
-            shot_scores = gaussian_filter(shot_scores, sigma=1, mode='nearest')
+            np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})
+            # print(shot_scores)
+            shot_scores = gaussian_filter(shot_scores, sigma=(0,1,1), mode='constant')
 
             max_shot_val = np.max(shot_scores)
-            max_shot_choices = (shot_scores == max_shot_val).nonzero()
+            # print(max_shot_val)
+            max_shot_choices = np.isclose(shot_scores, max_shot_val, atol=0.01).nonzero()
+            # print(max_shot_choices)
             choice = np.random.randint(len(max_shot_choices[0]))
             chosen_x_pos = poss_x_pos[max_shot_choices[0][choice]]
             chosen_x_vel = poss_x_vel[max_shot_choices[1][choice]]

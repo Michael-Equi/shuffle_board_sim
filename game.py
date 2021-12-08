@@ -33,10 +33,7 @@ class ShuffleBoardGame:
         for i in range(state.num_pucks):
             pos = state.get_x(i)
             if pos[0] >= 0 and pos[0] <= width and pos[1] <= length and pos[1] > sl_1:
-                if i % 2 == 0:
-                    y_pos[0].append(pos[1])
-                else:
-                    y_pos[1].append(pos[1])
+                y_pos[i%2].append(pos[1])
         if max(y_pos[0]) > max(y_pos[1]):
             winner = 0
         else:
@@ -50,6 +47,29 @@ class ShuffleBoardGame:
             else:
                 scores[winner] += 1
         return scores
+
+    def board_heuristics(self, state):
+        num_pucks = [0,0]
+        alt_score = [0,0]
+
+        width = ShuffleBoardGame.width
+        length = ShuffleBoardGame.length
+        sl_3 = length * (15/16)
+        sl_2 = length * (14/16)
+        sl_1 = length * (10/16)
+        
+        for i in range(state.num_pucks):
+            pos = state.get_x(i)
+            if pos[0] >= 0 and pos[0] <= width and pos[1] <= length and pos[1] > 0:
+                num_pucks[i%2] += 1
+                if pos[1] > sl_3:
+                    alt_score[i%2] += 3
+                elif pos[1] > sl_2:
+                    alt_score[i%2] += 2
+                elif pos[1] > sl_1:
+                    alt_score[i%2] += 1
+
+        return num_pucks, alt_score
 
     def display_board(self):
         fig, ax = plt.subplots(figsize=(3, 6))
@@ -76,7 +96,7 @@ class ShuffleBoardGame:
         for i in range(num_pucks):
             if i % 2 == 0:
                 teams[i] = 'red'
-                # state, xs = game.sim_turn(state, i, game.width/2,0.12,0.15,1)
+                # state, xs = game.sim_turn(state, i, game.width/2,0.1,0.0,1.15)
                 state, xs = self.sim_turn(state, i, *p1.calc_move(0, state, i))
             else:
                 teams[i] = 'blue'
@@ -85,6 +105,7 @@ class ShuffleBoardGame:
             sim.animate(xs, self.dt, self.length, self.width, teams)
         
         print(self.score_board(state))
+        print(self.board_heuristics(state))
 
         plt.close('all')
         r = 0.02936875
@@ -145,6 +166,6 @@ class ShuffleBoardGame:
 
 if __name__ == '__main__':
     game = ShuffleBoardGame()
-    game.run_real_game()
-    # game.run_sim_game()
+    # game.run_real_game()
+    game.run_sim_game()
     

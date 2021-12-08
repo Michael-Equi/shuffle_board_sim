@@ -147,6 +147,9 @@ def visualize(state, fig, ax, length, width, teams={}, r=0.02936875):
     plt.axis('square')
     plt.xlim([0, width])
     plt.ylim([0, length])
+    plt.axhline(y=length * (15/16))
+    plt.axhline(y=length * (14/16))
+    plt.axhline(y=length * (10/16))
 
 
 def animate(states, dt, length, width, teams={}, r=0.02936875):
