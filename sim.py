@@ -31,13 +31,13 @@ class State:
         assert self.num_pucks == other.num_pucks
         return State.from_vec(self._state - other.get_state())
 
-    def __str__(self):
-        s = ""
-        for puck in range(self.num_pucks):
-            x = self.get_x(puck)
-            dx = self.get_x_dot(puck)
-            s += f"puck #{puck}\n   x: {x[0]}\n   y: {x[1]}\n  dx: {dx[0]}\n  dy: {dx[1]}\n"
-        return s
+    # def __str__(self):
+    #     s = ""
+    #     for puck in range(self.num_pucks):
+    #         x = self.get_x(puck)
+    #         dx = self.get_x_dot(puck)
+    #         s += f"puck #{puck}\n   x: {x[0]}\n   y: {x[1]}\n  dx: {dx[0]}\n  dy: {dx[1]}\n"
+    #     return s
 
     def __array__(self):
         return self._state
@@ -82,57 +82,57 @@ class ShuffleBoardSim:
         self.dt = dt
         self.min_velocity = min_velocity
 
-    def simulate(self, initial_state: State, game, tol=1e-3):
-        # for friction models see http://www.mate.tue.nl/mate/pdfs/11194.pdf
-        def closed_loop(x: State, in_play):
-            x_dot = State(x.num_pucks)
+def simulate(sim, initial_state, game, tol=1e-3):
+    # for friction models see http://www.mate.tue.nl/mate/pdfs/11194.pdf
+    def closed_loop(x, in_play):
+        x_dot = State(x.num_pucks)
 
-            def get_friction(v, m):
-                friction = m * GRAVITY * KINETIC_FRICTION
-                if np.linalg.norm(v) > 0:
-                    f = - friction * v / np.linalg.norm(v)
-                    return f
-                return np.zeros_like(v)
+        def get_friction(v, m):
+            friction = m * GRAVITY * KINETIC_FRICTION
+            if np.linalg.norm(v) > 0:
+                f = - friction * v / np.linalg.norm(v)
+                return f
+            return np.zeros_like(v)
 
-            moving = []
-            for puck in in_play:
-                puck_x_dot = x.get_x_dot(puck)
-                if puck_x_dot[0] >= self.min_velocity or puck_x_dot[1] >= self.min_velocity:
-                    moving.append(puck)
+        moving = []
+        for puck in in_play:
+            puck_x_dot = x.get_x_dot(puck)
+            if puck_x_dot[0] >= sim.min_velocity or puck_x_dot[1] >= sim.min_velocity:
+                moving.append(puck)
 
-            for puck in moving:
-                x_dot.set_x(puck, np.where(abs(x.get_x_dot(puck)) < self.min_velocity, 0, x.get_x_dot(puck)))
-                x_dot.set_x_dot(puck, get_friction(x_dot.get_x(puck), self.m))
+        for puck in moving:
+            x_dot.set_x(puck, np.where(abs(x.get_x_dot(puck)) < sim.min_velocity, 0, x.get_x_dot(puck)))
+            x_dot.set_x_dot(puck, get_friction(x_dot.get_x(puck), sim.m))
 
-            for pair in itertools.combinations(in_play, 2):
-                if pair[0] in moving or pair[1] in moving:
-                # Collision physics
-                    p = x.get_x(pair[0]) - x.get_x(pair[1])
-                    distance_btw_pucks = np.linalg.norm(p)
-                    distance_btw_pucks_after_step = np.linalg.norm((x.get_x(pair[0]) + x_dot.get_x(pair[0]) * self.dt) - (
-                            x.get_x(pair[1]) + x_dot.get_x(pair[1]) * self.dt))
-                    if distance_btw_pucks < 2 * self.r and (distance_btw_pucks - distance_btw_pucks_after_step) > 0:
-                        vref = x_dot.get_x(pair[1])
-                        v_p2 = p @ (x_dot.get_x(pair[0]) - vref) / (p @ p) * p
-                        v_p1 = (x_dot.get_x(pair[0]) - vref) - v_p2
-                        x_dot.set_x_dot(pair[0], (v_p1 - x_dot.get_x(pair[0]) + vref) / self.dt)
-                        x_dot.set_x_dot(pair[1], (v_p2 - x_dot.get_x(pair[1]) + vref) / self.dt)
-            
-            return x_dot
+        for pair in itertools.combinations(in_play, 2):
+            if pair[0] in moving or pair[1] in moving:
+            # Collision physics
+                p = x.get_x(pair[0]) - x.get_x(pair[1])
+                distance_btw_pucks = np.linalg.norm(p)
+                distance_btw_pucks_after_step = np.linalg.norm((x.get_x(pair[0]) + x_dot.get_x(pair[0]) * sim.dt) - (
+                        x.get_x(pair[1]) + x_dot.get_x(pair[1]) * sim.dt))
+                if distance_btw_pucks < 2 * sim.r and (distance_btw_pucks - distance_btw_pucks_after_step) > 0:
+                    vref = x_dot.get_x(pair[1])
+                    v_p2 = np.matmul(p, (x_dot.get_x(pair[0]) - vref)) / np.matmul(p, p) * p
+                    v_p1 = (x_dot.get_x(pair[0]) - vref) - v_p2
+                    x_dot.set_x_dot(pair[0], (v_p1 - x_dot.get_x(pair[0]) + vref) / sim.dt)
+                    x_dot.set_x_dot(pair[1], (v_p2 - x_dot.get_x(pair[1]) + vref) / sim.dt)
+        
+        return x_dot
 
-        in_play = []
-        for i in range(initial_state.num_pucks):
-            p = initial_state.get_x(i)
-            if not ((p[0] == 0 and p[1] == 0) or \
-                p[0] < -self.r or p[0] > game.width + self.r or \
-                p[1] < -self.r or p[1] > game.length + self.r):
-                in_play.append(i)
-        xs = [initial_state]
-        while True:
-            x_dot = closed_loop(xs[-1], in_play)
-            xs.append(xs[-1] + x_dot * self.dt)
-            if np.linalg.norm(xs[-1] - xs[-2]) < tol:
-                return xs[-1], xs
+    in_play = []
+    for i in range(initial_state.num_pucks):
+        p = initial_state.get_x(i)
+        if not ((p[0] == 0 and p[1] == 0) or \
+            p[0] < -sim.r or p[0] > game.width + sim.r or \
+            p[1] < -sim.r or p[1] > game.length + sim.r):
+            in_play.append(i)
+    xs = [initial_state]
+    while True:
+        x_dot = closed_loop(xs[-1], in_play)
+        xs.append(xs[-1] + x_dot * sim.dt)
+        if np.linalg.norm(xs[-1] - xs[-2]) < tol:
+            return xs[-1], xs
 
 
 def visualize(state, fig, ax, length, width, teams={}, r=0.02936875):
@@ -147,21 +147,21 @@ def visualize(state, fig, ax, length, width, teams={}, r=0.02936875):
     plt.axis('square')
     plt.xlim([0, width])
     plt.ylim([0, length])
-    plt.axhline(y=length * (15/16))
-    plt.axhline(y=length * (14/16))
-    plt.axhline(y=length * (10/16))
+    plt.axhline(y=length * (15.0/16.0))
+    plt.axhline(y=length * (14.0/16.0))
+    plt.axhline(y=length * (10.0/16.0))
 
 
 def animate(states, dt, length, width, teams={}, r=0.02936875):
     fig, ax = plt.subplots(figsize=(3, 6))
-    less_states = states[0::10]
+    less_states = states[0::20]
     for state in less_states:
         visualize(state, fig, ax, length, width, teams, r)
         plt.pause(dt)
         ax.clear()
 
 
-def visualize_traj(states, fig, ax, teams={}, r=0.02936875):
+def visualize_traj(states, fig, ax, length, width, teams={}, r=0.02936875):
     states_arr = np.array([np.array(state) for state in states])
     for puck in range(states[0].num_pucks):
         ax.plot(states_arr[:, puck * 2], states_arr[:, puck * 2 + 1])
@@ -173,8 +173,11 @@ def visualize_traj(states, fig, ax, teams={}, r=0.02936875):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     plt.axis('square')
-    plt.xlim([0, 1])
-    plt.ylim([0, 2])
+    plt.xlim([0, width])
+    plt.ylim([0, length])
+    plt.axhline(y=length * (15.0/16.0))
+    plt.axhline(y=length * (14.0/16.0))
+    plt.axhline(y=length * (10.0/16.0))
 
 
 if __name__ == '__main__':

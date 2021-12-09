@@ -1,6 +1,7 @@
 import copy
 import time
 from random import uniform
+from contextlib import closing
 
 import numpy as np
 import multiprocessing as mp
@@ -47,12 +48,12 @@ class SimPlayer(Player):
                     shots.append((x_pos, x_vel, y_vel))
 
         shot_scores = np.empty((len(poss_x_pos), len(poss_x_vel), len(poss_y_vel)))
-        with mp.Pool(processes=12) as pool:
+        with closing(mp.Pool(processes=12)) as pool:
             results = []
             for shot in shots:
                 copied_state = copy.deepcopy(state)
                 copied_state.set_all(puck, np.array([shot[0], self.start_y, shot[1], shot[2]]))
-                results.append((pool.apply_async(self.player_sim.simulate, args=(copied_state, self.game)), shot))
+                results.append((pool.apply_async(sim.simulate, args=(self.player_sim, copied_state, self.game)), shot))
 
             pool.close()
             
@@ -72,7 +73,7 @@ class SimPlayer(Player):
                 y_vel_loc = np.searchsorted(poss_y_vel, r[1][2])
                 shot_scores[x_pos_loc,x_vel_loc,y_vel_loc] = scaled_score_diff + scaled_alt_score_diff + scaled_num_pucks_diff
 
-            np.random.seed(1)
+            np.random.seed(3)
             if player == 1:
                 shot_scores = -shot_scores
 
@@ -91,6 +92,7 @@ class SimPlayer(Player):
             best_shot = (chosen_x_pos, chosen_x_vel, chosen_y_vel)
 
             pool.join()
+            pool.terminate()
 
 
         print("Shot Time: " + str(time.time() - start))

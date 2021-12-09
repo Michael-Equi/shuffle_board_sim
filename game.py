@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -9,6 +11,9 @@ import players
 class ShuffleBoardGame:
     length = 2.4384
     width = 0.4064
+    sl_3 = length * (15.0/16.0)
+    sl_2 = length * (14.0/16.0)
+    sl_1 = length * (10.0/16.0)
 
     def __init__(self):
         self.dt = 0.01
@@ -17,22 +22,20 @@ class ShuffleBoardGame:
     def sim_turn(self, state, puck, x_pos, y_pos, x_vel, y_vel):
         original_x = state.get_all(puck)
         state.set_all(puck, np.array([x_pos, y_pos, x_vel, y_vel]))
-        xf, xs = self.sim.simulate(state, self)
+        xf, xs = sim.simulate(self.sim, state, self)
         state.set_all(puck, original_x)
         return xf, xs
 
     def score_board(self, state):
         width = ShuffleBoardGame.width
         length = ShuffleBoardGame.length
-        sl_3 = length * (15/16)
-        sl_2 = length * (14/16)
-        sl_1 = length * (10/16)
+        
         scores = [0,0]
-        y_pos = [[sl_1],[sl_1]]
+        y_pos = [[self.sl_1],[self.sl_1]]
 
         for i in range(state.num_pucks):
             pos = state.get_x(i)
-            if pos[0] >= 0 and pos[0] <= width and pos[1] <= length and pos[1] > sl_1:
+            if pos[0] >= 0 and pos[0] <= width and pos[1] <= length and pos[1] > self.sl_1:
                 y_pos[i%2].append(pos[1])
         if max(y_pos[0]) > max(y_pos[1]):
             winner = 0
@@ -40,9 +43,9 @@ class ShuffleBoardGame:
             winner = 1
         all_winning_y_pos = [pos for pos in y_pos[winner] if pos > max(y_pos[1 - winner])]
         for winning_y_pos in all_winning_y_pos:
-            if winning_y_pos > sl_3:
+            if winning_y_pos > self.sl_3:
                 scores[winner] += 3
-            elif winning_y_pos > sl_2:
+            elif winning_y_pos > self.sl_2:
                 scores[winner] += 2
             else:
                 scores[winner] += 1
@@ -54,19 +57,16 @@ class ShuffleBoardGame:
 
         width = ShuffleBoardGame.width
         length = ShuffleBoardGame.length
-        sl_3 = length * (15/16)
-        sl_2 = length * (14/16)
-        sl_1 = length * (10/16)
         
         for i in range(state.num_pucks):
             pos = state.get_x(i)
             if pos[0] >= 0 and pos[0] <= width and pos[1] <= length and pos[1] > 0:
                 num_pucks[i%2] += 1
-                if pos[1] > sl_3:
+                if pos[1] > self.sl_3:
                     alt_score[i%2] += 3
-                elif pos[1] > sl_2:
+                elif pos[1] > self.sl_2:
                     alt_score[i%2] += 2
-                elif pos[1] > sl_1:
+                elif pos[1] > self.sl_1:
                     alt_score[i%2] += 1
 
         return num_pucks, alt_score
@@ -103,6 +103,7 @@ class ShuffleBoardGame:
                 # state, xs = game.sim_turn(state, i, 0,0,0,0)
                 state, xs = self.sim_turn(state, i, *p2.calc_move(1, state, i))
             sim.animate(xs, self.dt, self.length, self.width, teams)
+            # sim.visualize_traj(xs[1:], fig, ax, self.length, self.width, teams)
         
         print(self.score_board(state))
         print(self.board_heuristics(state))
@@ -121,9 +122,9 @@ class ShuffleBoardGame:
         plt.axis('square')
         plt.xlim([0, self.width])
         plt.ylim([0, self.length])
-        plt.axhline(y=self.length * (15/16))
-        plt.axhline(y=self.length * (14/16))
-        plt.axhline(y=self.length * (10/16))
+        plt.axhline(y=game.sl_3)
+        plt.axhline(y=game.sl_2)
+        plt.axhline(y=game.sl_1)
         plt.show()
 
     def run_real_game(self):
